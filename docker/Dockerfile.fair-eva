@@ -1,0 +1,37 @@
+# Imagen base Python
+FROM python:3.11-slim AS base
+
+ENV PIP_NO_CACHE_DIR=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+
+# Paquetes de sistema necesarios para compilar dependencias típicas
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# --- ARGs para fijar versiones/branches si quieres
+ARG FAIR_EVA_REF=main
+ARG OAI_PMH_PLUGIN_REF=main
+
+# --- Clonar FAIR_eva
+RUN git clone --depth 1 --branch ${FAIR_EVA_REF} \
+    https://github.com/IFCA-Advanced-Computing/FAIR_eva fair_eva
+
+# --- Instalar FAIR_eva
+RUN cd fair_eva && pip install -U pip && pip install .
+
+# --- Clonar e instalar plugin OAI-PMH
+RUN git clone https://github.com/IFCA-Advanced-Computing/fair-eva-plugin-oai-pmh
+RUN cd fair-eva-plugin-oai-pmh && pip install .
+
+# Variables comunes
+ENV FAIR_EVA_HOST=0.0.0.0 \
+    FAIR_EVA_PORT=9090 \
+    FAIR_EVA_LOGLEVEL=info \
+    # Cambia esto si la CLI difiere; puedes sobreescribir en compose.yaml
+    START_CMD="fair-eva"
+
+EXPOSE 9090
+
+# Entrypoint flexible: intenta el comando de la CLI; si falla, usa un fallback típico con uvicorn
+CMD ["bash","-lc","fair-eva --host 0.0.0.0 --port 9090"]

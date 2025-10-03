@@ -1,0 +1,15 @@
+# Build del frontend
+FROM python:3.11-slim AS base
+
+# Paquetes de sistema necesarios para compilar dependencias típicas
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+
+RUN git clone https://github.com/IFCA-Advanced-Computing/fair_eva_web_client
+RUN pip install flask-babel flask-wtf
+RUN cd fair_eva_web_client && pip install .
+
+EXPOSE 8080
+CMD ["bash","-lc","fair-eva-web-client --host 0.0.0.0"]

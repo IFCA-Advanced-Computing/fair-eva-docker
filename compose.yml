@@ -1,0 +1,48 @@
+services:
+  fair-eva:
+    network_mode: host
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.fair-eva
+      args:
+        FAIR_EVA_REF: ${FAIR_EVA_REF:-main}
+        OAI_PMH_PLUGIN_REF: ${OAI_PMH_PLUGIN_REF:-main}
+    container_name: fair-eva
+    environment:
+      FAIR_EVA_HOST: 0.0.0.0
+      FAIR_EVA_PORT: 9090
+      FAIR_EVA_LOGLEVEL: ${FAIR_EVA_LOGLEVEL:-info}
+      # Si tu CLI difiere, cámbialo aquí sin rebuild:
+      START_CMD: ${FAIR_EVA_START_CMD:-fair-eva}
+      # Si FAIR EVA lee un config.ini, exporta la ruta:
+      FAIR_EVA_CONFIG: /config/config.ini
+      # Variables específicas del plugin OAI-PMH si las hubiera:
+      OAI_PMH_BASEURL: ${OAI_PMH_BASEURL:-}
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${FAIR_EVA_PORT:-9090}/v1.0/openapi.json >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+    restart: unless-stopped
+
+  fair-eva-web:
+    network_mode: host
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        WEB_REF: ${WEB_REF:-main}
+    container_name: fair-eva-web
+    depends_on:
+      fair-eva:
+        condition: service_healthy
+    # Mapea 8080 externo -> 80 interno de nginx
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    # Si la web necesita apuntar al backend:
+    environment:
+      VITE_API_BASE: ${VITE_API_BASE:-http://localhost:9090}  # o REACT_APP_API_BASE, según el repo
