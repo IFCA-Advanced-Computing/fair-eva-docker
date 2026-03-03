@@ -1,0 +1,38 @@
+services:
+  fair-eva:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.fair-eva
+      args:
+        FAIR_EVA_REF: ${FAIR_EVA_REF:-main}
+        # Plugins installed into the backend image (pip specs / git+https):
+        FAIR_EVA_PLUGINS: ${FAIR_EVA_PLUGINS:-git+https://github.com/IFCA-Advanced-Computing/fair-eva-plugin-oai-pmh@main}
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/v1.0/openapi.json >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  fair-eva-web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        WEB_REF: ${WEB_REF:-main}
+    restart: unless-stopped
+    depends_on:
+      fair-eva:
+        condition: service_healthy
+    environment:
+      # fair_eva_web_client uses FAIR_EVA_API_URL/FAIR_EVA_API_PORT to reach the backend.
+      # IMPORTANT: inside a container, "localhost" points to itself, not to other services.
+      FAIR_EVA_API_URL: ${FAIR_EVA_API_URL:-http://fair-eva}
+      FAIR_EVA_API_PORT: ${FAIR_EVA_API_PORT:-9090}
+      # Use a Docker-specific config.ini so api_url is not overwritten to http://localhost
+      FAIR_EVA_CONFIG_FILE: ${FAIR_EVA_CONFIG_FILE:-/app/config.docker.ini}
+    ports:
+      - "8000:8000"

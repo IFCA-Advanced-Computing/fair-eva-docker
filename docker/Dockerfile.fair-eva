@@ -1,0 +1,39 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG FAIR_EVA_REF=main
+ARG FAIR_EVA_PLUGINS="git+https://github.com/IFCA-Advanced-Computing/fair-eva-plugin-oai-pmh@main"
+
+WORKDIR /app
+RUN git clone --depth 1 --branch "${FAIR_EVA_REF}" https://github.com/IFCA-Advanced-Computing/FAIR_eva .
+
+# Asegura que el servidor escuche en 0.0.0.0 dentro del contenedor
+RUN python - <<'PY'
+from pathlib import Path
+
+path = Path("fair_eva/__init__.py")
+text = path.read_text(encoding="utf-8")
+
+old = "app.run(port=options_cli.port)"
+new = "app.run(host='0.0.0.0', port=options_cli.port)"
+
+if new in text:
+    raise SystemExit(0)
+if old not in text:
+    raise SystemExit(f"No se encontró el patrón esperado en {path}: {old!r}")
+
+path.write_text(text.replace(old, new), encoding="utf-8")
+PY
+
+RUN pip install -U pip && pip install .
+
+# Instala plugins (uno o varios) vía pip. Ejemplos:
+# - FAIR_EVA_PLUGINS="git+https://github.com/org/plugin@ref"
+# - FAIR_EVA_PLUGINS="pkg1 pkg2==1.2.3"
+RUN if [ -n "${FAIR_EVA_PLUGINS}" ]; then pip install ${FAIR_EVA_PLUGINS}; fi
+
+EXPOSE 9090
+CMD ["fair-eva", "--port", "9090"]

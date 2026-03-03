@@ -1,0 +1,43 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG WEB_REF=main
+
+WORKDIR /app
+RUN git clone --depth 1 --branch "${WEB_REF}" https://github.com/IFCA-Advanced-Computing/fair_eva_web_client .
+
+RUN pip install -U pip && pip install flask-babel flask-wtf && pip install .
+
+ENV FAIR_EVA_API_URL=http://fair-eva
+ENV FAIR_EVA_API_PORT=9090
+ENV FAIR_EVA_CONFIG_FILE=/app/config.docker.ini
+
+# The upstream repo ships a config.ini that defaults to http://localhost, which is
+# wrong inside Docker (it would point to the web container itself). Create a
+# Docker-specific config that points to the backend service name.
+RUN python - <<'PY'
+from pathlib import Path
+import configparser
+
+src = Path("/app/config.ini")
+dst = Path("/app/config.docker.ini")
+
+parser = configparser.ConfigParser()
+if src.is_file():
+    parser.read(src, encoding="utf-8")
+
+if not parser.has_section("fair_eva"):
+    parser["fair_eva"] = {}
+
+parser["fair_eva"]["api_url"] = "http://fair-eva"
+parser["fair_eva"]["api_port"] = "9090"
+
+with dst.open("w", encoding="utf-8") as fh:
+    parser.write(fh)
+PY
+
+EXPOSE 8000
+CMD ["fair-eva-web-client", "--host", "0.0.0.0", "--port", "8000"]
