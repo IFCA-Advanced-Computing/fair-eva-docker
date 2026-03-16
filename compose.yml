@@ -5,8 +5,10 @@ services:
       dockerfile: docker/Dockerfile.fair-eva
       args:
         FAIR_EVA_REF: ${FAIR_EVA_REF:-main}
-        # Plugins installed into the backend image (pip specs / git+https):
-        FAIR_EVA_PLUGINS: ${FAIR_EVA_PLUGINS:-git+https://github.com/IFCA-Advanced-Computing/fair-eva-plugin-oai-pmh@main}
+        # Plugins installed into the backend image (pip specs / git+https).
+        FAIR_EVA_PLUGINS: "${FAIR_EVA_PLUGINS:-git+https://github.com/IFCA-Advanced-Computing/fair-eva-plugin-oai-pmh@main git+https://github.com/ferag/fair-eva-plugin-gbif.git@main}"
+        # Extra runtime dependencies needed by plugins without reinstalling fair_eva.
+        FAIR_EVA_PLUGIN_EXTRA_DEPS: "${FAIR_EVA_PLUGIN_EXTRA_DEPS:-python-dwca-reader geopandas idutils numpy pandas pycountry requests shapely}"
     restart: unless-stopped
     ports:
       - "9090:9090"
@@ -22,6 +24,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.web
       args:
+        WEB_REPO: ${WEB_REPO:-https://github.com/IFCA-Advanced-Computing/fair_eva_web_client.git}
         WEB_REF: ${WEB_REF:-main}
     restart: unless-stopped
     depends_on:
@@ -32,7 +35,10 @@ services:
       # IMPORTANT: inside a container, "localhost" points to itself, not to other services.
       FAIR_EVA_API_URL: ${FAIR_EVA_API_URL:-http://fair-eva}
       FAIR_EVA_API_PORT: ${FAIR_EVA_API_PORT:-9090}
+      FAIR_EVA_API_EVAL_PATH: ${FAIR_EVA_API_EVAL_PATH:-/v1.0/rda/rda_all}
       # Use a Docker-specific config.ini so api_url is not overwritten to http://localhost
       FAIR_EVA_CONFIG_FILE: ${FAIR_EVA_CONFIG_FILE:-/app/config.docker.ini}
+      FAIR_EVA_API_PLUGINS_PATH: ${FAIR_EVA_API_PLUGINS_PATH:-/v1.0/endpoints}
+      FAIR_EVA_PLUGINS_FILE: ${FAIR_EVA_PLUGINS_FILE:-}
     ports:
       - "8000:8000"

@@ -5,7 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 ARG FAIR_EVA_REF=main
-ARG FAIR_EVA_PLUGINS="git+https://github.com/IFCA-Advanced-Computing/fair-eva-plugin-oai-pmh@main"
+ARG FAIR_EVA_PLUGINS="git+https://github.com/IFCA-Advanced-Computing/fair-eva-plugin-oai-pmh@main git+https://github.com/ferag/fair-eva-plugin-gbif.git@main"
+ARG FAIR_EVA_PLUGIN_EXTRA_DEPS="python-dwca-reader geopandas idutils numpy pandas pycountry requests shapely"
 
 WORKDIR /app
 RUN git clone --depth 1 --branch "${FAIR_EVA_REF}" https://github.com/IFCA-Advanced-Computing/FAIR_eva .
@@ -14,18 +15,26 @@ RUN git clone --depth 1 --branch "${FAIR_EVA_REF}" https://github.com/IFCA-Advan
 RUN python - <<'PY'
 from pathlib import Path
 
-path = Path("fair_eva/__init__.py")
-text = path.read_text(encoding="utf-8")
+replacements = {
+    Path("fair_eva/__init__.py"): (
+        "app.run(port=options_cli.port)",
+        "app.run(host='0.0.0.0', port=options_cli.port)",
+    ),
+    Path("fair_eva/api/rda.py"): (
+        '        plugin_list = [\n            resource.stem for resource in resources.files(f"{PLUGIN_PATH}").iterdir()\n        ]',
+        '        plugin_list = sorted(\n            resource.stem\n            for resource in resources.files(f"{PLUGIN_PATH}").iterdir()\n            if not resource.name.startswith("__")\n        )',
+    ),
+}
 
-old = "app.run(port=options_cli.port)"
-new = "app.run(host='0.0.0.0', port=options_cli.port)"
+for path, (old, new) in replacements.items():
+    text = path.read_text(encoding="utf-8")
 
-if new in text:
-    raise SystemExit(0)
-if old not in text:
-    raise SystemExit(f"No se encontró el patrón esperado en {path}: {old!r}")
+    if new in text:
+        continue
+    if old not in text:
+        raise SystemExit(f"No se encontró el patrón esperado en {path}: {old!r}")
 
-path.write_text(text.replace(old, new), encoding="utf-8")
+    path.write_text(text.replace(old, new), encoding="utf-8")
 PY
 
 RUN pip install -U pip && pip install .
@@ -33,7 +42,8 @@ RUN pip install -U pip && pip install .
 # Instala plugins (uno o varios) vía pip. Ejemplos:
 # - FAIR_EVA_PLUGINS="git+https://github.com/org/plugin@ref"
 # - FAIR_EVA_PLUGINS="pkg1 pkg2==1.2.3"
-RUN if [ -n "${FAIR_EVA_PLUGINS}" ]; then pip install ${FAIR_EVA_PLUGINS}; fi
+RUN if [ -n "${FAIR_EVA_PLUGIN_EXTRA_DEPS}" ]; then pip install ${FAIR_EVA_PLUGIN_EXTRA_DEPS}; fi \
+ && if [ -n "${FAIR_EVA_PLUGINS}" ]; then pip install --no-deps ${FAIR_EVA_PLUGINS}; fi
 
 EXPOSE 9090
 CMD ["fair-eva", "--port", "9090"]

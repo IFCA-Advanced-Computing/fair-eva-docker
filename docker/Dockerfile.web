@@ -4,16 +4,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git build-essential curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
+ARG WEB_REPO=https://github.com/IFCA-Advanced-Computing/fair_eva_web_client.git
 ARG WEB_REF=main
 
 WORKDIR /app
-RUN git clone --depth 1 --branch "${WEB_REF}" https://github.com/IFCA-Advanced-Computing/fair_eva_web_client .
+RUN git clone --depth 1 --branch "${WEB_REF}" "${WEB_REPO}" .
 
 RUN pip install -U pip && pip install flask-babel flask-wtf && pip install .
 
 ENV FAIR_EVA_API_URL=http://fair-eva
 ENV FAIR_EVA_API_PORT=9090
+ENV FAIR_EVA_API_EVAL_PATH=/v1.0/rda/rda_all
 ENV FAIR_EVA_CONFIG_FILE=/app/config.docker.ini
+ENV FAIR_EVA_API_PLUGINS_PATH=/v1.0/endpoints
+ENV FAIR_EVA_PLUGINS_FILE=
 
 # The upstream repo ships a config.ini that defaults to http://localhost, which is
 # wrong inside Docker (it would point to the web container itself). Create a
@@ -34,6 +38,9 @@ if not parser.has_section("fair_eva"):
 
 parser["fair_eva"]["api_url"] = "http://fair-eva"
 parser["fair_eva"]["api_port"] = "9090"
+parser["fair_eva"]["api_eval_path"] = "/v1.0/rda/rda_all"
+parser["fair_eva"]["api_plugins_path"] = "/v1.0/endpoints"
+parser["fair_eva"]["plugins_file"] = ""
 
 with dst.open("w", encoding="utf-8") as fh:
     parser.write(fh)
